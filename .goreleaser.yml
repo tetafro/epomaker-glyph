@@ -1,7 +1,8 @@
 version: 2
 builds:
   - goos: [linux]
-    goarch: [amd64, arm64]
+    goarch: [amd64]
+    env: [CGO_ENABLED=1]
 checksum:
   name_template: checksums.txt
 snapshot:
