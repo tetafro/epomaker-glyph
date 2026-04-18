@@ -30,7 +30,7 @@ sudo epomaker-glyph -pid 0x5002
 Send a specific time:
 
 ```sh
-sudo epomaker-glyph -pid 0x5002 -time "2026-04-10T15:00:00Z00:00"
+sudo epomaker-glyph -pid 0x5002 -time "2026-04-10T15:00:00"
 ```
 
 ---
