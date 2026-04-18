@@ -2,54 +2,122 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"math"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	hid "github.com/sstallion/go-hid"
 )
 
+type Flags struct {
+	List bool
+	Run  bool
+	VID  uint16
+	PID  uint16
+	Time time.Time
+}
+
 func main() {
-	list := flag.Bool("list", false, "List all HID devices and exit")
+	ctx, cancel := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer cancel()
+
+	flags, err := parseFlags()
+	if err != nil {
+		failf("Failed to parse flags: %v", err)
+	}
+
+	switch {
+	case flags.List:
+		if err := listDevices(); err != nil {
+			failf("Failed to list devices: %v", err)
+		}
+	case flags.Run:
+		if err := runLoop(ctx, flags.VID, flags.PID); err != nil {
+			failf("Failed to run: %v", err)
+		}
+	default:
+		fmt.Printf("Setting time to %s...\n", flags.Time.Format("2006-01-02T15:04:05"))
+		if err := setTime(flags.VID, flags.PID, flags.Time); err != nil {
+			failf("Failed to set time: %v", err)
+		}
+		fmt.Println("Done")
+	}
+}
+
+func parseFlags() (Flags, error) {
+	var flags Flags
+
+	flag.BoolVar(&flags.List, "list", false, "List all HID devices and exit")
+	flag.BoolVar(&flags.Run, "run", false, "Run in a loop, set time every hour")
 	vid := flag.Uint("vid", 0x3151, "Vendor ID in hex, e.g. 0x3151") // Default is ROYUAN (Epomaker's USB vendor)
 	pid := flag.Uint("pid", 0, "Product ID in hex, e.g. 0x5002")
 	timeStr := flag.String("time", "", `Time to send, e.g. "2006-01-02T15:04:05" (default: now)`)
 	flag.Parse()
 
-	if *list {
-		if err := listDevices(); err != nil {
-			failf("Failed to list devices: %v", err)
-		}
-		return
+	if flags.List {
+		return flags, nil
 	}
 
 	if *pid == 0 {
-		failf("Empty -pid")
-	}
-	if *vid > math.MaxUint16 {
-		failf("Vendor ID overflows uint16, max: 0x%04x", math.MaxUint16)
+		return Flags{}, fmt.Errorf("empty -pid")
 	}
 	if *pid > math.MaxUint16 {
-		failf("Product ID overflows uint16, max: 0x%04x", math.MaxUint16)
+		return Flags{}, fmt.Errorf("product ID overflows uint16, max: 0x%04x", math.MaxUint16)
 	}
+	flags.PID = uint16(*pid)
 
-	t := time.Now()
+	if *vid > math.MaxUint16 {
+		return Flags{}, fmt.Errorf("vendor ID overflows uint16, max: 0x%04x", math.MaxUint16)
+	}
+	flags.VID = uint16(*vid)
+
+	flags.Time = time.Now()
 	if *timeStr != "" {
 		var err error
-		t, err = time.Parse("2006-01-02T15:04:05", *timeStr)
+		flags.Time, err = time.Parse("2006-01-02T15:04:05", *timeStr)
 		if err != nil {
-			failf("Invalid -time value: '%s'", *timeStr)
+			return Flags{}, fmt.Errorf("invalid -time value: '%s'", *timeStr)
 		}
 	}
+
+	return flags, nil
+}
+
+func runLoop(ctx context.Context, vid, pid uint16) error {
+	// Don't wait for the ticker for the first run
+	t := time.Now()
 	fmt.Printf("Setting time to %s...\n", t.Format("2006-01-02T15:04:05"))
-	if err := setTime(uint16(*vid), uint16(*pid), t); err != nil {
-		failf("Failed to set time: %v", err)
+	if err := setTime(vid, pid, t); err != nil {
+		return fmt.Errorf("set time: %v", err)
 	}
 	fmt.Println("Done")
+
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			t := time.Now()
+			fmt.Printf("Setting time to %s...\n", t.Format("2006-01-02T15:04:05"))
+			if err := setTime(vid, pid, t); err != nil {
+				return fmt.Errorf("set time: %v", err)
+			}
+			fmt.Println("Done")
+		case <-ctx.Done():
+			return nil
+		}
+	}
 }
 
 func listDevices() error {
