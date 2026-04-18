@@ -99,7 +99,7 @@ func runLoop(ctx context.Context, vid, pid uint16) error {
 	t := time.Now()
 	fmt.Printf("Setting time to %s...\n", t.Format("2006-01-02T15:04:05"))
 	if err := setTime(vid, pid, t); err != nil {
-		return fmt.Errorf("set time: %v", err)
+		return fmt.Errorf("set time: %w", err)
 	}
 	fmt.Println("Done")
 
@@ -111,7 +111,7 @@ func runLoop(ctx context.Context, vid, pid uint16) error {
 			t := time.Now()
 			fmt.Printf("Setting time to %s...\n", t.Format("2006-01-02T15:04:05"))
 			if err := setTime(vid, pid, t); err != nil {
-				return fmt.Errorf("set time: %v", err)
+				return fmt.Errorf("set time: %w", err)
 			}
 			fmt.Println("Done")
 		case <-ctx.Done():
