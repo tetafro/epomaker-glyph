@@ -10,10 +10,7 @@ Or build from source:
 
 ```sh
 sudo apt install libudev-dev
-
-git clone git@github.com:tetafro/epomaker-glyph.git
-cd epomaker-glyph
-go build -o ./bin/epomaker-glyph .
+go install github.com:tetafro/epomaker-glyph@latest
 ```
 
 ## Usage
@@ -33,7 +30,7 @@ sudo epomaker-glyph -pid 0x5002
 Send a specific time:
 
 ```sh
-sudo epomaker-glyph -pid 0x5002 --time "2026-04-10T15:00:00Z00:00"
+sudo epomaker-glyph -pid 0x5002 -time "2026-04-10T15:00:00Z00:00"
 ```
 
 ---
